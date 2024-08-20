@@ -1,6 +1,6 @@
 const ErrorHandler = require("../utils/errorHandle");
 const catchAsyncErrors = require("../middleware/catchAsyncErrors");
-const sendEmail = require("../utils/sendEmail")
+const sendEmail = require("../utils/sendEmail");
 const User = require("../models/userModel");
 const sendToken = require("../utils/jwttoken");
 const crypto = require("crypto");
@@ -106,35 +106,74 @@ exports.forgetPassword = catchAsyncErrors(async (req, res, next) => {
   }
 });
 
-
-// reset password Url 
+// reset password Url
 exports.resetPassword = catchAsyncErrors(async (req, res, next) => {
-// creating token hash 
+  // creating token hash
   const resetPasswordToken = crypto
     .createHash("sha256")
     .update(req.params.token)
     .digest("hex");
-   
-   
-   const user = await User.findOne({
 
+  const user = await User.findOne({
     resetPasswordToken,
-    resetPasswordExpire:{$gt:Date.now()},
-   }) 
+    resetPasswordExpire: { $gt: Date.now() },
+  });
 
-   if (!user) {
-    return next(new ErrorHandler("Reset Password token is Invalid or has been expired", 400));
+  if (!user) {
+    return next(
+      new ErrorHandler(
+        "Reset Password token is Invalid or has been expired",
+        400
+      )
+    );
   }
   if (req.body.password !== req.body.confrimPassword) {
-
     return next(new ErrorHandler("Password does not password", 400));
   }
-  
+
   user.password = req.body.password;
-  user.resetPasswordToken=undefined;
-  user.resetPasswordExpire=undefined;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpire = undefined;
 
   await user.save();
 
-  sendToken(user,200,res)
-})
+  sendToken(user, 200, res);
+});
+
+// Get user details
+
+exports.getUserDetails = catchAsyncErrors(async (req, res, next) => {
+  const user = await User.findById(req.user.id);
+
+  res.status(200).json({
+    sucess: true,
+    user,
+  });
+});
+
+
+//update user password
+
+
+exports.updateUserPassword = catchAsyncErrors(async (req, res, next) => {
+  const user = await User.findById(req.user.id).select("+password")
+
+  const isPasswordMatched = await user.comparePassword(req.body.oldPassword);
+
+  if (!isPasswordMatched) {
+    return next(new ErrorHandler("Old password is Invalid", 401));
+  }
+
+  if(req.body.newPassword !== req.body.confrimPassword ){
+
+    return next(new ErrorHandler("Password does not match", 401));
+
+  }
+
+ user.password = req.body.newPassword
+
+ await user.save()
+
+ sendToken(user,200,res)
+  
+});
